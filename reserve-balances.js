@@ -20,7 +20,7 @@ async function update_balance_of(tokens) {
         if (token.chain_bype === 'sub') {
             if (khalaApi === 'undefined') {
                 console.log(`Establish connection with substrate node`);
-                const provider = new WsProvider(token.endpoint);
+                const provider = new WsProvider(token.endpoint + process.env.ONFINALITY_API_KEY);
                 khalaApi = await ApiPromise.create({provider});
             }
             if (token.is_native) {
