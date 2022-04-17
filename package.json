@@ -1,14 +1,14 @@
 {
-  "name": "xtransfer-prom",
+  "name": "subbridge-prom",
   "version": "0.0.1",
-  "description": "Prometheus services of Phala XTransfer",
+  "description": "Prometheus services of Phala Subbridge",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tolak/xtransfer-prom.git"
+    "url": "git+https://github.com/tolak/subbridge-prom.git"
   },
   "keywords": [
     "Prometheus",
@@ -18,10 +18,13 @@
   "author": "Wenfeng Wang",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/tolak/xtransfer-prom/issues"
+    "url": "https://github.com/tolak/subbridge-prom/issues"
   },
-  "homepage": "https://github.com/tolak/xtransfer-prom#readme",
+  "homepage": "https://github.com/tolak/subbridge-prom#readme",
   "dependencies": {
+    "@polkadot/api": "^8.0.2",
+    "dotenv": "^16.0.0",
+    "ethers": "^5.6.4",
     "express": "^4.17.3",
     "prom-client": "^14.0.1"
   }
