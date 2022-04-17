@@ -31,9 +31,27 @@ require('prom-client').collectDefaultMetrics({
 
 setInterval(async () => {
     await reserve_balances.update_balance_of(tokens);
-}, 10000);  // 10s
+}, 30000);  // 30s
 
 // Setup server to Prometheus scrapes:
+
+server.get('/', async (req, res) => {
+	try {
+		res.set('Content-Type', register.contentType);
+		res.json({ message: 'Hello World!' })
+	} catch (ex) {
+		res.status(500).end(ex);
+	}
+});
+
+server.get('/api/v1/query', async (req, res) => {
+	try {
+		res.set('Content-Type', register.contentType);
+		res.json({ message: 'API!' })
+	} catch (ex) {
+		res.status(500).end(ex);
+	}
+});
 
 server.get('/metrics', async (req, res) => {
 	try {
