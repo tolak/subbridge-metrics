@@ -4,8 +4,8 @@ const express = require('express');
 const server = express();
 const register = require('prom-client').register;
 const Gauge = require('prom-client').Gauge;
-const reserve_balances = require('./reserve-balances.js');
-const utils = require('./utils.js');
+const reserve_balances = require('./src/reserve-balances.js');
+const utils = require('./src/utils.js');
 const tokens = require('./tokens.json');
 
 // Enable collection of default metrics
@@ -31,7 +31,7 @@ require('prom-client').collectDefaultMetrics({
 
 setInterval(async () => {
     await reserve_balances.update_balance_of(tokens);
-}, 30000);  // 30s
+}, Number(process.env.BALANCE_UPDATE_INTERVAL));
 
 // Setup server to Prometheus scrapes:
 
