@@ -50,6 +50,9 @@ server.get('/metrics/rb', async (req, res) => {
 	}
 });
 
+// Initialize proposal handler
+proposals.initialize(__dirname + '/config.json', __dirname + '/.datastore');
+
 const port = process.env.PORT || 3001;
 console.log(
 	`Server listening to ${port}, metrics exposed on /metrics endpoint`,
