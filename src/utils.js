@@ -8,6 +8,11 @@ function from_unit(balance, decimals) {
         ).toNumber();
 }
 
+function minsPassed(start) {
+    (Date.now() - start) / 60
+}
+
 module.exports = {
     from_unit,
+    minsPassed,
 }
