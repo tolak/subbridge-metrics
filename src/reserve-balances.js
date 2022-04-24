@@ -37,8 +37,8 @@ async function update_balance_of(tokens) {
         } else {
             throw new Error("Unsupported chain type");
         }
-        console.log(`Got balance of ${token.name} on ${token.chain} network: ${utils.from_unit(balance, token.decimals)}`);
-        ReserveBalance.set({ token: token.name, chain: token.chain }, utils.from_unit(balance, token.decimals));
+        console.log(`Got balance of ${token.name} on ${token.chain} network: ${utils.fromUnit(balance, token.decimals)}`);
+        ReserveBalance.set({ token: token.name, chain: token.chain }, utils.fromUnit(balance, token.decimals));
     }));
 }
 

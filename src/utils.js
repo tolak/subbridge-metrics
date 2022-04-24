@@ -13,6 +13,6 @@ function minsPassed(start) {
 }
 
 module.exports = {
-    from_unit,
+    fromUnit,
     minsPassed,
 }
