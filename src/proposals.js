@@ -1,7 +1,5 @@
-const IERC20Json = require('../IERC20.json');
 const ethers = require('ethers');
 const { ApiPromise, WsProvider } = require("@polkadot/api");
-const Gauge = require('prom-client').Gauge;
 const Histogram = require('prom-client').Histogram;
 const utils = require('./utils.js');
 const network = require('./network.js');

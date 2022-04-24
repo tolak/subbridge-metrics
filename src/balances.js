@@ -12,7 +12,7 @@ const ReserveBalance = new Gauge({
 	labelNames: ['token', 'chain'],
 });
 
-async function update_balance_of(tokens) {
+async function updateBalanceOf(tokens) {
     Promise.all(tokens.map(async token => {
         let balance = 'undefined';
         if (token.chain_bype === 'sub') {
@@ -43,5 +43,5 @@ async function update_balance_of(tokens) {
 }
 
 module.exports = {
-    update_balance_of,
+    updateBalanceOf,
 }

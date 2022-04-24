@@ -4,8 +4,8 @@ const express = require('express');
 const server = express();
 const register = require('prom-client').register;
 const Gauge = require('prom-client').Gauge;
-const reserve_balances = require('./src/reserve-balances.js');
-const proposal = require('./src/proposal.js');
+const balances = require('./src/balances.js');
+const proposal = require('./src/proposals.js');
 const utils = require('./src/utils.js');
 const tokens = require('./tokens.json');
 
@@ -15,7 +15,7 @@ require('prom-client').collectDefaultMetrics({
 });
 
 setInterval(async () => {
-    await reserve_balances.update_balance_of(tokens);
+    await balances.updateBalanceOf(tokens);
 }, Number(process.env.UPDATE_INTERVAL));
 
 setInterval(async () => {
