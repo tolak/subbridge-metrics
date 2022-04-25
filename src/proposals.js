@@ -237,7 +237,7 @@ async function _lookupProposalsFromBlocks() {
             try {
                 proposals = proposals.concat(await _filterBridgeEvent(khalaApi, evmProvider, hash));
                 latestHandledBlock++;
-                fs.writeFileSync(globalDataStorePath + blockFileName, `"startBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'a'});
+                fs.writeFileSync(globalDataStorePath + blockFileName, `"latestHandledBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'w'});
             } catch (e) {
                 throw new Error(`Failed to parse block: error: ${e}`);
             }
