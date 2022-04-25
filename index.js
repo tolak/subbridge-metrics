@@ -54,7 +54,7 @@ server.get('/metrics/rb', async (req, res) => {
 proposals.initialize(__dirname + '/config.json', __dirname);
 
 const port = process.env.PORT || 3001;
-console.log(
+console.info(
 	`Server listening to ${port}, metrics exposed on /metrics endpoint`,
 );
 server.listen(port);

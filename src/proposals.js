@@ -27,9 +27,11 @@ const ProposalPendingTime = new Histogram({
 
 setInterval(async () => {
     if (runMode === 'lookup') {
+        console.info('Runing proposal lookup task');
         await _lookupProposals();
         runMode = 'cleanup';
     } else {
+        console.info('Runing proposal cleanup task');
         await _cleanProposals();
         runMode = 'lookup';
     }
@@ -48,7 +50,7 @@ function initialize(configPath, dataStorePath) {
         syncStep = config.syncStep;
     } catch(err) {
         if (err.code === 'ENOENT') {
-            console.log(`Config file not found, try read start block from data store`);
+            console.info(`Config file not found, try read start block from data store`);
             try {
                 const blockHistoryFile = fs.readFileSync(dataStorePath + blockFileName, { encoding: 'utf8', flag: 'r' });
                 const blockHistory = JSON.parse(blockHistoryFile);
@@ -60,17 +62,17 @@ function initialize(configPath, dataStorePath) {
             throw err;
         }
     }
-    console.log(`Set last handed block to ${latestHandledBlock}, step to ${syncStep}`);
+    console.info(`Set last handed block to ${latestHandledBlock}, step to ${syncStep}`);
 
     // Fetch proposals from local file system
     const proposalStorePath = dataStorePath + proposalFileName;
     try {
         const proposalFile = fs.readFileSync(proposalStorePath, { encoding: 'utf8', flag: 'r' });
         proposalPendingQueue = JSON.parse(proposalFile);
-        console.log(`Found ${proposalPendingQueue.length} intial proposals, add them to pending queue`);
+        console.info(`Found ${proposalPendingQueue.length} intial proposals, add them to pending queue`);
     } catch(err) {
         if (err.code === 'ENOENT') {
-            console.log(`Proposal file not found, try create it`);
+            console.info(`Proposal file not found, try create it`);
             fs.writeFileSync(proposalStorePath, '[]', { encoding: 'utf8', flag: 'a'});
         } else {
             throw err;
@@ -179,9 +181,9 @@ async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
     let proposals = [];
     const events = (await khalaApi.query.chainBridge.bridgeEvents.at(hash)).toJSON();
     const createdAt =  (await khalaApi.rpc.chain.getHeader()).timestamp;
-    // console.log(`==> events: ${JSON.stringify(events, null, 2)}`);
+    // console.debug(`==> events: ${JSON.stringify(events, null, 2)}`);
     if (events.length > 0) {
-        console.log(`==> proposals exist in block ${hash}`);
+        console.debug(`==> proposals exist in block ${hash}`);
         for (let i = 0; i < events.length; i++) {
             const event = events[i].fungibleTransfer;
             const args = {
@@ -203,7 +205,6 @@ async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
                 voteStatus: await _getProposal(evmProvider, 1, args.nonce, bnString, args.recipient)
             });
         }
-        console.log(JSON.stringify(proposals, null, 2));
     }
     return proposals;
 }
@@ -215,7 +216,7 @@ async function _lookupProposalsFromBlocks() {
     let proposals = [];
     const latestHeader = await khalaApi.rpc.chain.getHeader();
     const latestBlock = Number(latestHeader.number);
-    console.log(`Get latest block from network ${config.khalaEndpoint}: #${latestBlock}`);
+    console.info(`Get latest block from network ${config.khalaEndpoint}: #${latestBlock}`);
 
     const step = syncStep;
     const missingBlocks = latestBlock - latestHandledBlock;
@@ -224,13 +225,13 @@ async function _lookupProposalsFromBlocks() {
     }
 
     const nSteps = Math.floor(missingBlocks/step) + (missingBlocks%step === 0 ? 0 : 1);
-    console.log(`We have missed #${missingBlocks} blocks, need to run #${nSteps} times`);
+    console.info(`We have missed #${missingBlocks} blocks, need to run #${nSteps} times`);
     for (let counter = 0; counter < nSteps; counter++) {
         const from = latestHandledBlock;
         const to = counter === (nSteps -1) ? 
             from + (missingBlocks%step - 1) : 
             (from + step - 1);
-        console.log(`#[${counter}/${nSteps-1}] fetch batch block hash from ${from} to ${to}`);
+        console.info(`#[${counter}/${nSteps-1}] fetch batch block hash from ${from} to ${to}`);
         const hashList =  await _fetchSomeBlocksHash(khalaApi, from, to);
 
         for (const hash of hashList) {
