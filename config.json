@@ -1,5 +1,5 @@
 {
-    "startBlock": 1522260,
+    "startBlock": 1525568,
     "syncStep": 100,
     "lookupPropoalInterval": 30000,
     "erc20": "0xEEc0fb4913119567cDfC0c5fc2Bf8f9F9B226c2d",

@@ -4,7 +4,7 @@ const { ApiPromise, WsProvider } = require("@polkadot/api");
 const Histogram = require('prom-client').Histogram;
 const utils = require('./utils.js');
 const network = require('./network.js');
-const config = require('../config.json')
+const config = require('../config.json');
 const BridgeContractAddress = require('../config.json').bridge;
 const BridgeJson = require('../Bridge.json');
 
@@ -154,7 +154,6 @@ async function _getProposal(evmProvider, chain, nonce, u256HexString, recipient)
     const ProposalStatus = ['Inactive', 'Active', 'Passed', 'Executed', 'Cancelled'];
 
     const bridge = new ethers.Contract(BridgeContractAddress, BridgeJson.abi, evmProvider);
-
     const dataHash = utils.getDataHash(u256HexString, recipient);
     const proposal = await bridge.getProposal(chain, nonce, dataHash);
     return utils.proposalToHuman(proposal);
@@ -211,7 +210,7 @@ async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
 
 async function _lookupProposalsFromBlocks() {
     const khalaApi = await network.establishSubstrate(config.khalaEndpoint);
-    const evmProvider = network.establishEvm(config.evmEndpoint + process.env.INFURA_API_KEY);
+    const evmProvider = await network.establishEvm(config.evmEndpoint + process.env.INFURA_API_KEY);
 
     let proposals = [];
     const latestHeader = await khalaApi.rpc.chain.getHeader();

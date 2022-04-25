@@ -20,7 +20,7 @@ function asHexNumber(x) {
         if (x.startsWith('0x')) {
             return x;
         } else {
-            return ethers.utils.hexlify(ethers.utils.bigNumberify(x))
+            return ethers.utils.hexlify(ethers.BigNumber.from(x))
         }
     } else {
         throw new Error('Unknown number type');
@@ -31,7 +31,7 @@ function getDataHash(u256HexString, recipient) {
     const data = '0x' + 
         ERC20HandlerAddress.substr(2) + 
         u256HexString + 
-        ethers.utils.hexZeroPad(ethers.utils.bigNumberify(20).toHexString(), 32).substr(2) +  
+        ethers.utils.hexZeroPad(ethers.BigNumber.from(20).toHexString(), 32).substr(2) + 
         recipient.substr(2);
 
     return ethers.utils.keccak256(data);
@@ -61,4 +61,8 @@ function resolveAddr(a) {
 module.exports = {
     fromUnit,
     minsPassed,
+    asHexNumber,
+    getDataHash,
+    proposalToHuman,
+    resolveAddr
 }
