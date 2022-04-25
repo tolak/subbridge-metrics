@@ -1,3 +1,4 @@
+const fs = require('fs');
 const ethers = require('ethers');
 const { ApiPromise, WsProvider } = require("@polkadot/api");
 const Histogram = require('prom-client').Histogram;
@@ -7,12 +8,16 @@ const config = require('../config.json')
 const BridgeContractAddress = require('../config.json').bridge;
 const BridgeJson = require('../Bridge.json');
 
-const proposalPendingQueue = [];
+const proposalFileName = '/.proposals';
+const blockFileName = '/.block';
+let proposalPendingQueue = [];
 // Mark if we are currently fetch blocks from source chain
-const isSyncing = false;
-const latestHandledBlock = 0;
-const syncStep = 10;
-const globalDataStorePath = './';
+let isSyncing = false;
+// Run mode of interval task
+let runMode = 'lookup';   // or set to 'cleanup'
+let latestHandledBlock = 0;
+let syncStep = 10;
+let globalDataStorePath = './';
 
 const ProposalPendingTime = new Histogram({
 	name: 'pending_proposals',
@@ -21,12 +26,14 @@ const ProposalPendingTime = new Histogram({
 });
 
 setInterval(async () => {
-    await _lookupProposals();
+    if (runMode === 'lookup') {
+        await _lookupProposals();
+        runMode = 'cleanup';
+    } else {
+        await _cleanProposals();
+        runMode = 'lookup';
+    }
 }, config.lookupPropoalInterval);
-
-setInterval(async () => {
-    await _cleanProposals();
-}, config.cleanProposalQueueInterval);
 
 /**
  * External task to initialize the module
@@ -43,7 +50,7 @@ function initialize(configPath, dataStorePath) {
         if (err.code === 'ENOENT') {
             console.log(`Config file not found, try read start block from data store`);
             try {
-                const blockHistoryFile = fs.readFileSync(dataStorePath + 'block', { encoding: 'utf8', flag: 'r' });
+                const blockHistoryFile = fs.readFileSync(dataStorePath + blockFileName, { encoding: 'utf8', flag: 'r' });
                 const blockHistory = JSON.parse(blockHistoryFile);
                 latestHandledBlock = blockHistory.startBlock;
             } catch(err) {
@@ -53,10 +60,10 @@ function initialize(configPath, dataStorePath) {
             throw err;
         }
     }
-    console.log(`Set last handed block to ${lastHandledBlock}, step to ${syncStep}`);
+    console.log(`Set last handed block to ${latestHandledBlock}, step to ${syncStep}`);
 
     // Fetch proposals from local file system
-    const proposalStorePath = dataStorePath + 'proposals';
+    const proposalStorePath = dataStorePath + proposalFileName;
     try {
         const proposalFile = fs.readFileSync(proposalStorePath, { encoding: 'utf8', flag: 'r' });
         proposalPendingQueue = JSON.parse(proposalFile);
@@ -76,7 +83,7 @@ function initialize(configPath, dataStorePath) {
  */
 async function updateProposalTime() {
     // Update proposals time
-    for (const proposal of proposalPendingQueue) {
+    for (let proposal of proposalPendingQueue) {
         h.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
     }
 }
@@ -85,10 +92,30 @@ async function updateProposalTime() {
  * Internal interval task to remove executed proposals from proposalPendingQueue
  */
  async function _cleanProposals() {
+    let promises = [];
     // Update proposals time
-    for (const proposal of proposalPendingQueue) {
-        h.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
+    for (let proposal of proposalPendingQueue) {
+        const bnString = ethers.utils.hexZeroPad(utils.asHexNumber(proposal.amount), 32).substr(2);
+        promises.push(
+            new Promise(async (resolve, reject) => {
+                // 1 is khala chainId
+                const voteStatus = await _getProposal(evmProvider, 1, proposal.nonce, bnString, proposal.recipient)
+                resolve(voteStatus);
+            })
+        );
     }
+
+    // Qury latest proposal from dest chain
+    const proposalStatus = await Promise.all(promises);
+
+    // Shift pending proposal queue according to returned status
+    let newPendingProposalQueue = [];
+    for (const [index, staus] of proposalStatus.entries()) {
+        if (status !== 'Executed' && status !== 'Cancelled') {
+            newPendingProposalQueue.push(pendingProposals[index]);
+        }
+    }
+    pendingProposals = newPendingProposalQueue;
 }
 
 /**
@@ -106,7 +133,7 @@ async function _lookupProposals() {
 
     if (pendingProposals.length === 0) return;
     jsonStr = JSON.stringify(_mergePendingProposals(pendingProposals), null, 2);
-    fs.writeFileSync(globalDataStorePath + 'proposals', jsonStr, { encoding: "utf-8" });
+    fs.writeFileSync(globalDataStorePath + proposalFileName, jsonStr, { encoding: "utf-8" });
 
     isSyncing = false;
 }
@@ -132,8 +159,8 @@ async function _getProposal(evmProvider, chain, nonce, u256HexString, recipient)
 }
 
 async function _fetchSomeBlocksHash(api, from, to) {
-    const promises = [];
-    for (const height = from; height <= to; height++) {
+    let promises = [];
+    for (let height = from; height <= to; height++) {
         promises.push(
             new Promise(async (resolve, reject) => {
                 const blockHash = await api.rpc.chain.getBlockHash(height)
@@ -149,13 +176,13 @@ async function _fetchSomeBlocksHash(api, from, to) {
 }
 
 async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
-    const proposals = [];
+    let proposals = [];
     const events = (await khalaApi.query.chainBridge.bridgeEvents.at(hash)).toJSON();
     const createdAt =  (await khalaApi.rpc.chain.getHeader()).timestamp;
     // console.log(`==> events: ${JSON.stringify(events, null, 2)}`);
     if (events.length > 0) {
         console.log(`==> proposals exist in block ${hash}`);
-        for (const i = 0; i < events.length; i++) {
+        for (let i = 0; i < events.length; i++) {
             const event = events[i].fungibleTransfer;
             const args = {
                 destId: event[0],
@@ -185,21 +212,21 @@ async function _lookupProposalsFromBlocks() {
     const khalaApi = await network.establishSubstrate(config.khalaEndpoint);
     const evmProvider = network.establishEvm(config.evmEndpoint + process.env.INFURA_API_KEY);
 
-    const proposals = [];
+    let proposals = [];
     const latestHeader = await khalaApi.rpc.chain.getHeader();
     const latestBlock = Number(latestHeader.number);
     console.log(`Get latest block from network ${config.khalaEndpoint}: #${latestBlock}`);
 
     const step = syncStep;
-    const missingBlocks = latestBlock - lastHandledBlock;
+    const missingBlocks = latestBlock - latestHandledBlock;
     if (missingBlocks <= 0) {
-        throw new Error(`Wrong block height {${lastHandledBlock}, ${latestBlock}}. qed`);
+        throw new Error(`Wrong block height {${latestHandledBlock}, ${latestBlock}}. qed`);
     }
 
     const nSteps = Math.floor(missingBlocks/step) + (missingBlocks%step === 0 ? 0 : 1);
     console.log(`We have missed #${missingBlocks} blocks, need to run #${nSteps} times`);
-    for (const counter = 0; counter < nSteps; counter++) {
-        const from = lastHandledBlock;
+    for (let counter = 0; counter < nSteps; counter++) {
+        const from = latestHandledBlock;
         const to = counter === (nSteps -1) ? 
             from + (missingBlocks%step - 1) : 
             (from + step - 1);
@@ -209,8 +236,8 @@ async function _lookupProposalsFromBlocks() {
         for (const hash of hashList) {
             try {
                 proposals = proposals.concat(await _filterBridgeEvent(khalaApi, evmProvider, hash));
-                lastHandledBlock++;
-                fs.writeFileSync(globalDataStorePath + 'block', `"startBlock": ${lastHandledBlock}`, { encoding: 'utf8', flag: 'a'});
+                latestHandledBlock++;
+                fs.writeFileSync(globalDataStorePath + blockFileName, `"startBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'a'});
             } catch (e) {
                 throw new Error(`Failed to parse block: error: ${e}`);
             }

@@ -5,7 +5,7 @@ const server = express();
 const register = require('prom-client').register;
 const Gauge = require('prom-client').Gauge;
 const balances = require('./src/balances.js');
-const proposal = require('./src/proposals.js');
+const proposals = require('./src/proposals.js');
 const utils = require('./src/utils.js');
 const tokens = require('./tokens.json');
 
@@ -19,7 +19,7 @@ setInterval(async () => {
 }, Number(process.env.UPDATE_INTERVAL));
 
 setInterval(async () => {
-    await proposal.updateProposalTime();
+    await proposals.updateProposalTime();
 }, Number(process.env.UPDATE_INTERVAL));
 
 // Setup server to Prometheus scrapes:
@@ -51,7 +51,7 @@ server.get('/metrics/rb', async (req, res) => {
 });
 
 // Initialize proposal handler
-proposals.initialize(__dirname + '/config.json', __dirname + '/.datastore');
+proposals.initialize(__dirname + '/config.json', __dirname);
 
 const port = process.env.PORT || 3001;
 console.log(
