@@ -15,7 +15,7 @@ async function establishSubstrate(url) {
                 release();
                 resolve(subApis.get(url));
             } else {
-                console.info(`Establish connection with substrate node`);
+                console.info(`☎️ Establish connection with substrate node`);
                 const provider = new WsProvider(url);
                 const api = await ApiPromise.create({provider});
                 subApis.set(url, api);
@@ -37,7 +37,7 @@ async function establishEvm(url) {
                 release();
                 resolve(evmProviders.get(url));
             } else {
-                console.info(`Establish connection with evm node`);
+                console.info(`☎️ Establish connection with evm node`);
                 const provider = new ethers.providers.JsonRpcProvider(url)
                 evmProviders.set(url, provider);
                 release();

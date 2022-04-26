@@ -12,7 +12,7 @@ const proposalFileName = '/.proposals';
 const blockFileName = '/.block';
 let proposalPendingQueue = [];
 // Mark if we are currently fetch blocks from source chain
-let isSyncing = false;
+let isProcessing = false;
 // Run mode of interval task
 let runMode = 'lookup';   // or set to 'cleanup'
 let latestHandledBlock = 0;
@@ -26,15 +26,22 @@ const ProposalPendingTime = new Histogram({
 });
 
 setInterval(async () => {
+    if (isProcessing) {
+        console.debug(`📜 Interval task not finished, return.`);
+        return;
+    }
+    isProcessing = true;
+
     if (runMode === 'lookup') {
-        console.info('Runing proposal lookup task');
+        console.info('📜 Runing proposal lookup task');
         await _lookupProposals();
         runMode = 'cleanup';
     } else {
-        console.info('Runing proposal cleanup task');
+        console.info('📜 Runing proposal cleanup task');
         await _cleanProposals();
         runMode = 'lookup';
     }
+    isProcessing = false;
 }, config.lookupPropoalInterval);
 
 /**
@@ -50,7 +57,7 @@ function initialize(configPath, dataStorePath) {
         syncStep = config.syncStep;
     } catch(err) {
         if (err.code === 'ENOENT') {
-            console.info(`Config file not found, try read start block from data store`);
+            console.info(`📜 Config file not found, try read start block from data store`);
             try {
                 const blockHistoryFile = fs.readFileSync(dataStorePath + blockFileName, { encoding: 'utf8', flag: 'r' });
                 const blockHistory = JSON.parse(blockHistoryFile);
@@ -62,17 +69,17 @@ function initialize(configPath, dataStorePath) {
             throw err;
         }
     }
-    console.info(`Set last handed block to ${latestHandledBlock}, step to ${syncStep}`);
+    console.info(`📜 Set last handed block to ${latestHandledBlock}, step to ${syncStep}`);
 
     // Fetch proposals from local file system
     const proposalStorePath = dataStorePath + proposalFileName;
     try {
         const proposalFile = fs.readFileSync(proposalStorePath, { encoding: 'utf8', flag: 'r' });
         proposalPendingQueue = JSON.parse(proposalFile);
-        console.info(`Found ${proposalPendingQueue.length} intial proposals, add them to pending queue`);
+        console.info(`📜 Found ${proposalPendingQueue.length} intial proposals, add them to pending queue`);
     } catch(err) {
         if (err.code === 'ENOENT') {
-            console.info(`Proposal file not found, try create it`);
+            console.info(`📜 Proposal file not found, try create it`);
             fs.writeFileSync(proposalStorePath, '[]', { encoding: 'utf8', flag: 'a'});
         } else {
             throw err;
@@ -115,20 +122,20 @@ async function updateProposalTime() {
     for (const [index, staus] of proposalStatus.entries()) {
         if (status !== 'Executed' && status !== 'Cancelled') {
             newPendingProposalQueue.push(pendingProposals[index]);
+        } else {
+            console.debug(`Proposal {dest: ${pendingProposals[index].destId}, nonce: ${pendingProposals[index].nonce}} handled, cost ${utils.minsPassed(pendingProposals[index].createdAt)} minutes`);
         }
     }
     pendingProposals = newPendingProposalQueue;
+    console.debug(`📜 Cleanup task done.`);
 }
 
 /**
  * Internal interval task to lookup proposals from source chain
  * 
- * If the task if running, e.g. isSyncing set to true, should return and retry when timer triggered again.
+ * If the task if running, e.g. isProcessing set to true, should return and retry when timer triggered again.
  */
 async function _lookupProposals() {
-    if (isSyncing) return;
-    isSyncing = true;
-
     // fetch blocks and checkout bridge transfer
     const proposals = await _lookupProposalsFromBlocks();
     const pendingProposals = proposals.filter(p => { return (p.voteStatus.status !== 'Executed') && (p.voteStatus.status !== 'Cancelled')})
@@ -136,8 +143,7 @@ async function _lookupProposals() {
     if (pendingProposals.length === 0) return;
     jsonStr = JSON.stringify(_mergePendingProposals(pendingProposals), null, 2);
     fs.writeFileSync(globalDataStorePath + proposalFileName, jsonStr, { encoding: "utf-8" });
-
-    isSyncing = false;
+    console.debug(`📜 Lookup task done.`);
 }
 
 function _mergePendingProposals(proposals) {
@@ -180,9 +186,9 @@ async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
     let proposals = [];
     const events = (await khalaApi.query.chainBridge.bridgeEvents.at(hash)).toJSON();
     const createdAt =  (await khalaApi.rpc.chain.getHeader()).timestamp;
-    // console.debug(`==> events: ${JSON.stringify(events, null, 2)}`);
+    // console.debug(`📜 ==> events: ${JSON.stringify(events, null, 2)}`);
     if (events.length > 0) {
-        console.debug(`==> proposals exist in block ${hash}`);
+        console.debug(`📜 ==> proposals exist in block ${hash}`);
         for (let i = 0; i < events.length; i++) {
             const event = events[i].fungibleTransfer;
             const args = {
@@ -215,7 +221,7 @@ async function _lookupProposalsFromBlocks() {
     let proposals = [];
     const latestHeader = await khalaApi.rpc.chain.getHeader();
     const latestBlock = Number(latestHeader.number);
-    console.info(`Get latest block from network ${config.khalaEndpoint}: #${latestBlock}`);
+    console.info(`📜 Get latest block from network ${config.khalaEndpoint}: #${latestBlock}`);
 
     const step = syncStep;
     const missingBlocks = latestBlock - latestHandledBlock;
@@ -224,13 +230,13 @@ async function _lookupProposalsFromBlocks() {
     }
 
     const nSteps = Math.floor(missingBlocks/step) + (missingBlocks%step === 0 ? 0 : 1);
-    console.info(`We have missed #${missingBlocks} blocks, need to run #${nSteps} times`);
+    console.info(`📜 We have missed #${missingBlocks} blocks, need to run #${nSteps} times`);
     for (let counter = 0; counter < nSteps; counter++) {
         const from = latestHandledBlock;
         const to = counter === (nSteps -1) ? 
             from + (missingBlocks%step - 1) : 
             (from + step - 1);
-        console.info(`#[${counter}/${nSteps-1}] fetch batch block hash from ${from} to ${to}`);
+        console.info(`📜 #[${counter}/${nSteps-1}] fetch batch block hash from ${from} to ${to}`);
         const hashList =  await _fetchSomeBlocksHash(khalaApi, from, to);
 
         for (const hash of hashList) {
