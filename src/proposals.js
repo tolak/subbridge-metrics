@@ -10,7 +10,7 @@ const BridgeJson = require('../Bridge.json');
 
 const proposalFileName = '/.proposals';
 const blockFileName = '/.block';
-let proposalPendingQueue = [];
+let globalProposalPendingQueue = [];
 // Mark if we are currently fetch blocks from source chain
 let isProcessing = false;
 // Run mode of interval task
@@ -32,6 +32,7 @@ setInterval(async () => {
     }
     isProcessing = true;
 
+    // Simple way to grantee no concurrency issue happened on globalProposalPendingQueue,
     if (runMode === 'lookup') {
         console.info('📜 Runing proposal lookup task');
         await _lookupProposals();
@@ -75,8 +76,8 @@ function initialize(configPath, dataStorePath) {
     const proposalStorePath = dataStorePath + proposalFileName;
     try {
         const proposalFile = fs.readFileSync(proposalStorePath, { encoding: 'utf8', flag: 'r' });
-        proposalPendingQueue = JSON.parse(proposalFile);
-        console.info(`📜 Found ${proposalPendingQueue.length} intial proposals, add them to pending queue`);
+        globalProposalPendingQueue = JSON.parse(proposalFile);
+        console.info(`📜 Found ${globalProposalPendingQueue.length} intial proposals, add them to pending queue`);
     } catch(err) {
         if (err.code === 'ENOENT') {
             console.info(`📜 Proposal file not found, try create it`);
@@ -91,23 +92,23 @@ function initialize(configPath, dataStorePath) {
  * External interval task to update the time used in minutes of pending proposals
  */
 async function updateProposalTime() {
-    if (proposalPendingQueue.length === 0) {
+    if (globalProposalPendingQueue.length === 0) {
         console.debug(`📜 No pending proposal found, return.`);
         return;
     }
     // Update proposals time
-    for (const proposal of proposalPendingQueue) {
+    for (const proposal of globalProposalPendingQueue) {
         ProposalPendingTime.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
     }
 }
 
 /**
- * Internal interval task to remove executed proposals from proposalPendingQueue
+ * Internal interval task to remove executed proposals from globalProposalPendingQueue
  */
  async function _cleanProposals() {
     let promises = [];
     // Update proposals time
-    for (let proposal of proposalPendingQueue) {
+    for (let proposal of globalProposalPendingQueue) {
         const bnString = ethers.utils.hexZeroPad(utils.asHexNumber(proposal.amount), 32).substr(2);
         promises.push(
             new Promise(async (resolve, reject) => {
@@ -125,12 +126,12 @@ async function updateProposalTime() {
     let newPendingProposalQueue = [];
     for (const [index, staus] of proposalStatus.entries()) {
         if (status !== 'Executed' && status !== 'Cancelled') {
-            newPendingProposalQueue.push(pendingProposals[index]);
+            newPendingProposalQueue.push(globalProposalPendingQueue[index]);
         } else {
-            console.debug(`✅ Proposal {dest: ${pendingProposals[index].destId}, nonce: ${pendingProposals[index].nonce}} handled, cost ${utils.minsPassed(pendingProposals[index].createdAt)} minutes`);
+            console.debug(`✅ Proposal {dest: ${globalProposalPendingQueue[index].destId}, nonce: ${globalProposalPendingQueue[index].nonce}} handled, cost ${utils.minsPassed(globalProposalPendingQueue[index].createdAt)} minutes`);
         }
     }
-    pendingProposals = newPendingProposalQueue;
+    globalProposalPendingQueue = newPendingProposalQueue;
     console.debug(`📜 Cleanup task done.`);
 }
 
@@ -145,19 +146,22 @@ async function _lookupProposals() {
     const pendingProposals = proposals.filter(p => { return (p.voteStatus.status !== 'Executed') && (p.voteStatus.status !== 'Cancelled')})
 
     if (pendingProposals.length === 0) return;
-    jsonStr = JSON.stringify(_mergePendingProposals(pendingProposals), null, 2);
+    const prevPendingCount = globalProposalPendingQueue.length;
+    _mergeNewPendingProposals(pendingProposals);
+    jsonStr = JSON.stringify(globalProposalPendingQueue, null, 2);
     fs.writeFileSync(globalDataStorePath + proposalFileName, jsonStr, { encoding: "utf-8" });
-    console.debug(`📜 Lookup task done.`);
+    console.debug(`📜 Lookup task done, ${globalProposalPendingQueue.length - prevPendingCount} new pending proposals found.`);
 }
 
-function _mergePendingProposals(proposals) {
+function _mergeNewPendingProposals(proposals) {
     // Merge
-    pendingProposals = [...new Set([...pendingProposals, ...proposals])];
+    let pendingProposals = [...new Set([...globalProposalPendingQueue, ...proposals])];
 
     // Sort
     pendingProposals.sort((a, b) => {
         return a.nonce > b.nonce;
     });
+    globalProposalPendingQueue = pendingProposals;
 }
 
 async function _getProposal(evmProvider, chain, nonce, u256HexString, recipient) {
