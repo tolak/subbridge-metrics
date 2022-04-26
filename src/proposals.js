@@ -91,8 +91,11 @@ function initialize(configPath, dataStorePath) {
  * External interval task to update the time used in minutes of pending proposals
  */
 async function updateProposalTime() {
+    if (proposalPendingQueue.length === 0) {
+        console.debug(`📜 No pending proposal found, return.`);
+    }
     // Update proposals time
-    for (let proposal of proposalPendingQueue) {
+    for (const proposal of proposalPendingQueue) {
         ProposalPendingTime.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
     }
 }
@@ -214,6 +217,24 @@ async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
     return proposals;
 }
 
+async function _filterSomeEvents(api, provider, hashList) {
+    let promises = [];
+    for (const hash of hashList) {
+        promises.push(
+            new Promise(async (resolve, reject) => {
+                try {
+                    const proposals = await _filterBridgeEvent(api, provider, hash);
+                    resolve(proposals);
+                } catch (e) {
+                    reject(e);
+                }
+            })
+        );
+    }
+
+    return await Promise.all(promises);
+}
+
 async function _lookupProposalsFromBlocks() {
     const khalaApi = await network.establishSubstrate(config.khalaEndpoint);
     const evmProvider = await network.establishEvm(config.evmEndpoint + process.env.INFURA_API_KEY);
@@ -236,17 +257,19 @@ async function _lookupProposalsFromBlocks() {
         const to = counter === (nSteps -1) ? 
             from + (missingBlocks%step - 1) : 
             (from + step - 1);
-        console.info(`📜 #[${counter}/${nSteps-1}] fetch batch block hash from ${from} to ${to}`);
+        console.info(`📜 #[${counter}/${nSteps-1}] fetch batch block hash from khala network, range [${from}, ${to}]`);
         const hashList =  await _fetchSomeBlocksHash(khalaApi, from, to);
 
-        for (const hash of hashList) {
-            try {
-                proposals = proposals.concat(await _filterBridgeEvent(khalaApi, evmProvider, hash));
-                latestHandledBlock++;
-                fs.writeFileSync(globalDataStorePath + blockFileName, `"latestHandledBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'w'});
-            } catch (e) {
-                throw new Error(`Failed to parse block: error: ${e}`);
+        try {
+            // Filter events concurrently, results like [[p0, p1], [p2, p3], [p4, p5]]
+            const proposalArrayList = await _filterSomeEvents(khalaApi, evmProvider, hashList);
+            for (const newProposals of proposalArrayList) {
+                proposals = proposals.concat(newProposals);
             }
+            latestHandledBlock = to;
+            fs.writeFileSync(globalDataStorePath + blockFileName, `"latestHandledBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'w'});
+        } catch (e) {
+            throw new Error(`Failed to parse block: error: ${e}`);
         }
     }
 
