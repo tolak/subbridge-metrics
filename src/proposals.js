@@ -93,7 +93,7 @@ function initialize(configPath, dataStorePath) {
 async function updateProposalTime() {
     // Update proposals time
     for (let proposal of proposalPendingQueue) {
-        h.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
+        ProposalPendingTime.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
     }
 }
 
@@ -123,7 +123,7 @@ async function updateProposalTime() {
         if (status !== 'Executed' && status !== 'Cancelled') {
             newPendingProposalQueue.push(pendingProposals[index]);
         } else {
-            console.debug(`Proposal {dest: ${pendingProposals[index].destId}, nonce: ${pendingProposals[index].nonce}} handled, cost ${utils.minsPassed(pendingProposals[index].createdAt)} minutes`);
+            console.debug(`✅ Proposal {dest: ${pendingProposals[index].destId}, nonce: ${pendingProposals[index].nonce}} handled, cost ${utils.minsPassed(pendingProposals[index].createdAt)} minutes`);
         }
     }
     pendingProposals = newPendingProposalQueue;
