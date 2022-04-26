@@ -93,6 +93,7 @@ function initialize(configPath, dataStorePath) {
 async function updateProposalTime() {
     if (proposalPendingQueue.length === 0) {
         console.debug(`📜 No pending proposal found, return.`);
+        return;
     }
     // Update proposals time
     for (const proposal of proposalPendingQueue) {
