@@ -98,7 +98,10 @@ async function updateProposalTime() {
     }
     // Update proposals time
     for (const proposal of globalProposalPendingQueue) {
-        ProposalPendingTime.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
+        const mins = utils.minsPassed(proposal.createdAt);
+        console.debug(`📜 Proposal {dest: ${proposal.destId}, nonce: ${proposal.nonce}} already takes ${mins} minutes.`);
+        ProposalPendingTime.labels(proposal.destId, proposal.nonce).observe(mins);
+
     }
     console.debug(`📜 Run proposal update inverval task completed.`);
 }
@@ -113,13 +116,14 @@ async function updateProposalTime() {
         return;
     }
     // Update proposals time
+    const evmProvider = await network.establishEvm(config.evmEndpoint + process.env.INFURA_API_KEY);
     for (let proposal of globalProposalPendingQueue) {
         const bnString = ethers.utils.hexZeroPad(utils.asHexNumber(proposal.amount), 32).substr(2);
         promises.push(
             new Promise(async (resolve, reject) => {
                 // 1 is khala chainId
                 const voteStatus = await _getProposal(evmProvider, 1, proposal.nonce, bnString, proposal.recipient)
-                resolve(voteStatus);
+                resolve(voteStatus.status);
             })
         );
     }
@@ -129,7 +133,7 @@ async function updateProposalTime() {
 
     // Shift pending proposal queue according to returned status
     let newPendingProposalQueue = [];
-    for (const [index, staus] of proposalStatus.entries()) {
+    for (const [index, status] of proposalStatus.entries()) {
         if (status !== 'Executed' && status !== 'Cancelled') {
             newPendingProposalQueue.push(globalProposalPendingQueue[index]);
         } else {
@@ -198,7 +202,7 @@ async function _fetchSomeBlocksHash(api, from, to) {
 async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
     let proposals = [];
     const events = (await khalaApi.query.chainBridge.bridgeEvents.at(hash)).toJSON();
-    const createdAt =  (await khalaApi.rpc.chain.getHeader()).timestamp;
+    const createdAt =  Date.now();
     if (events.length > 0) {
         console.debug(`📌 ${events.length} proposals exist in block ${hash}`);
         for (let i = 0; i < events.length; i++) {
