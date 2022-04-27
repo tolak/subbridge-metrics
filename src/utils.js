@@ -1,6 +1,6 @@
 
 const ethers = require('ethers');
-const ERC20HandlerAddress = require('../config.json').erc20;
+const ERC20HandlerAddress = require('../config.json').erc20Handler;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -14,7 +14,7 @@ function fromUnit(balance, decimals) {
 }
 
 function minsPassed(start) {
-    (Date.now() - start) / 60
+    return (Date.now() - start) / (60 * 1000)
 }
 
 function asHexNumber(x) {
