@@ -2,6 +2,10 @@
 const ethers = require('ethers');
 const ERC20HandlerAddress = require('../config.json').erc20;
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function fromUnit(balance, decimals) {
     return ethers.BigNumber.from(balance)
         .div(
@@ -59,6 +63,7 @@ function resolveAddr(a) {
 }
 
 module.exports = {
+    sleep,
     fromUnit,
     minsPassed,
     asHexNumber,

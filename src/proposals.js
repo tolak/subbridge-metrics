@@ -93,13 +93,14 @@ function initialize(configPath, dataStorePath) {
  */
 async function updateProposalTime() {
     if (globalProposalPendingQueue.length === 0) {
-        console.debug(`📜 No pending proposal found, return.`);
+        console.debug(`📜 No pending proposal to update, return.`);
         return;
     }
     // Update proposals time
     for (const proposal of globalProposalPendingQueue) {
         ProposalPendingTime.labels(proposal.chain, proposal.nonce).observe(utils.minsPassed(proposal.createdAt));
     }
+    console.debug(`📜 Run proposal update inverval task completed.`);
 }
 
 /**
@@ -107,6 +108,10 @@ async function updateProposalTime() {
  */
  async function _cleanProposals() {
     let promises = [];
+    if (globalProposalPendingQueue.length === 0) {
+        console.debug(`📜 No pending proposal to clean, return.`);
+        return;
+    }
     // Update proposals time
     for (let proposal of globalProposalPendingQueue) {
         const bnString = ethers.utils.hexZeroPad(utils.asHexNumber(proposal.amount), 32).substr(2);
@@ -132,7 +137,7 @@ async function updateProposalTime() {
         }
     }
     globalProposalPendingQueue = newPendingProposalQueue;
-    console.debug(`📜 Cleanup task done.`);
+    console.debug(`📜 Run cleanup inverval task completed.`);
 }
 
 /**
@@ -150,7 +155,7 @@ async function _lookupProposals() {
     _mergeNewPendingProposals(pendingProposals);
     jsonStr = JSON.stringify(globalProposalPendingQueue, null, 2);
     fs.writeFileSync(globalDataStorePath + proposalFileName, jsonStr, { encoding: "utf-8" });
-    console.debug(`📜 Lookup task done, ${globalProposalPendingQueue.length - prevPendingCount} new pending proposals found.`);
+    console.debug(`📜 Totally ${globalProposalPendingQueue.length - prevPendingCount} new pending proposals found.`);
 }
 
 function _mergeNewPendingProposals(proposals) {
@@ -194,9 +199,8 @@ async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
     let proposals = [];
     const events = (await khalaApi.query.chainBridge.bridgeEvents.at(hash)).toJSON();
     const createdAt =  (await khalaApi.rpc.chain.getHeader()).timestamp;
-    // console.debug(`📜 ==> events: ${JSON.stringify(events, null, 2)}`);
     if (events.length > 0) {
-        console.debug(`📜 ==> proposals exist in block ${hash}`);
+        console.debug(`📌 ${events.length} proposals exist in block ${hash}`);
         for (let i = 0; i < events.length; i++) {
             const event = events[i].fungibleTransfer;
             const args = {
@@ -262,20 +266,40 @@ async function _lookupProposalsFromBlocks() {
         const to = counter === (nSteps -1) ? 
             from + (missingBlocks%step - 1) : 
             (from + step - 1);
-        console.info(`📜 #[${counter}/${nSteps-1}] fetch batch block hash from khala network, range [${from}, ${to}]`);
-        const hashList =  await _fetchSomeBlocksHash(khalaApi, from, to);
 
-        try {
-            // Filter events concurrently, results like [[p0, p1], [p2, p3], [p4, p5]]
-            const proposalArrayList = await _filterSomeEvents(khalaApi, evmProvider, hashList);
-            for (const newProposals of proposalArrayList) {
-                proposals = proposals.concat(newProposals);
+        let proposalArrayList = [];
+        let retryCount = 0;
+        let lastError = new Error();
+        while (retryCount++ < config.networkRetryLimit) {
+            try {
+                console.info(`📜 #[${counter}/${nSteps-1}] Start to handle block on khala network, range [${from}, ${to}]`);
+                const hashList =  await _fetchSomeBlocksHash(khalaApi, from, to);
+                // Filter events concurrently, results like [[p0, p1], [p2, p3], [p4, p5]]
+                proposalArrayList = await _filterSomeEvents(khalaApi, evmProvider, hashList);
+            } catch (e) {
+                // Retry if got network error
+                if (e.toString().startsWith(`No response received from RPC endpoint`)) {
+                    lastError = e;
+                    console.warn(`⚠️ No response received from RPC endpoint, wait ${config.networkRetryInterval/1000}s and retry`);
+                    utils.sleep(config.networkRetryInterval);
+                    continue;
+                } else {
+                    throw e;
+                }
             }
-            latestHandledBlock = to;
-            fs.writeFileSync(globalDataStorePath + blockFileName, `"latestHandledBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'w'});
-        } catch (e) {
-            throw new Error(`Failed to parse block: error: ${e}`);
+            break;
         }
+        if (retryCount === config.networkRetryLimit) {
+            console.error(`❌ Retry count exceeds limit for error ${lastError}`)
+            throw lastError;
+        }
+        console.info(`📜 ${to - from + 1} blocks have been processed`);
+
+        for (const newProposals of proposalArrayList) {
+            proposals = proposals.concat(newProposals);
+        }
+        latestHandledBlock = to;
+        fs.writeFileSync(globalDataStorePath + blockFileName, `"latestHandledBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'w'});
     }
 
     return proposals;
