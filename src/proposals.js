@@ -215,9 +215,12 @@ async function _fetchSomeBlocksHash(api, from, to) {
 async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
     let proposals = [];
     const events = (await khalaApi.query.chainBridge.bridgeEvents.at(hash)).toJSON();
-    const createdAt =  Date.now();
     if (events.length > 0) {
         console.debug(`📌 ${events.length} proposals exist in block ${hash}`);
+        // Extract timestamp from first extrisinc in block
+        const block = await khalaApi.rpc.chain.getBlock(hash);
+        // timestamp.set
+        const createdAt =  block.block.extrinsics[0].method.toJSON().args.now;
         for (let i = 0; i < events.length; i++) {
             const event = events[i].fungibleTransfer;
             const args = {
