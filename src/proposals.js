@@ -18,6 +18,7 @@ let runMode = 'lookup';   // or set to 'cleanup'
 let latestHandledBlock = 0;
 let syncStep = 10;
 let globalDataStorePath = './';
+let monitorMap = new Map();
 
 const ProposalPendingTime = new Histogram({
 	name: 'pending_proposals',
@@ -78,6 +79,9 @@ function initialize(configPath, dataStorePath) {
         const proposalFile = fs.readFileSync(proposalStorePath, { encoding: 'utf8', flag: 'r' });
         globalProposalPendingQueue = JSON.parse(proposalFile);
         console.info(`📜 Found ${globalProposalPendingQueue.length} intial proposals, add them to pending queue`);
+        for(const proposal of globalProposalPendingQueue) {
+            monitorMap[String(proposal.destId) + String(proposal.nonce)] = true;
+        }
     } catch(err) {
         if (err.code === 'ENOENT') {
             console.info(`📜 Proposal file not found, try create it`);
@@ -163,9 +167,18 @@ async function _lookupProposals() {
 }
 
 function _mergeNewPendingProposals(proposals) {
-    // Merge
-    let pendingProposals = [...new Set([...globalProposalPendingQueue, ...proposals])];
+    let newProposals = [];
+    // Remove duplicated proposals
+    for (const proposal of proposals) {
+        if (monitorMap[String(proposal.destId) + String(proposal.nonce)] !== true) {
+            newProposals.push(proposal);
+            monitorMap[String(proposal.destId) + String(proposal.nonce)] = true;
+        } else {
+            console.debug(`📜  Proposal {dest: ${proposal.destId}, nonce: ${proposal.nonce}} already being monitored, skip.`);
+        }
+    }
 
+    let pendingProposals = globalProposalPendingQueue.concat(newProposals);
     // Sort
     pendingProposals.sort((a, b) => {
         return a.nonce > b.nonce;
