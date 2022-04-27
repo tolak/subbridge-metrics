@@ -1,7 +1,7 @@
 const fs = require('fs');
 const ethers = require('ethers');
 const { ApiPromise, WsProvider } = require("@polkadot/api");
-const Histogram = require('prom-client').Histogram;
+const Gauge = require('prom-client').Gauge;
 const utils = require('./utils.js');
 const network = require('./network.js');
 const config = require('../config.json');
@@ -20,7 +20,7 @@ let syncStep = 10;
 let globalDataStorePath = './';
 let monitorMap = new Map();
 
-const ProposalPendingTime = new Histogram({
+const ProposalPendingTime = new Gauge({
 	name: 'pending_proposals',
 	help: 'Every pending proposal send to EVM chains',
 	labelNames: ['chain', "nonce"],
@@ -104,8 +104,7 @@ async function updateProposalTime() {
     for (const proposal of globalProposalPendingQueue) {
         const mins = utils.minsPassed(proposal.createdAt);
         console.debug(`📜 Proposal {dest: ${proposal.destId}, nonce: ${proposal.nonce}} already takes ${mins} minutes.`);
-        ProposalPendingTime.labels(proposal.destId, proposal.nonce).observe(mins);
-
+        ProposalPendingTime.set({ chain: proposal.destId, nonce: proposal.nonce }, mins);
     }
     console.debug(`📜 Run proposal update inverval task completed.`);
 }
@@ -141,6 +140,8 @@ async function updateProposalTime() {
         if (status !== 'Executed' && status !== 'Cancelled') {
             newPendingProposalQueue.push(globalProposalPendingQueue[index]);
         } else {
+            // Remove metrics from guage
+            ProposalPendingTime.remove({chain: globalProposalPendingQueue[index].destId, nonce: globalProposalPendingQueue[index].nonce});
             console.debug(`✅ Proposal {dest: ${globalProposalPendingQueue[index].destId}, nonce: ${globalProposalPendingQueue[index].nonce}} handled, cost ${utils.minsPassed(globalProposalPendingQueue[index].createdAt)} minutes`);
         }
     }
