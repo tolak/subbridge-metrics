@@ -1,11 +1,11 @@
 {
-    "startBlock": 7079,
+    "startBlock": 1535237,
     "syncStep": 100,
     "lookupPropoalInterval": 30000,
     "networkRetryLimit": 5,
     "networkRetryInterval": 5000,
-    "erc20Handler": "0x30f8549A46afa69f3F9b46e3C28F456796E6Cf37",
-    "bridge": "0x0712Cf53B9fA1A33018d180a4AbcC7f1803F55f4",
-    "khalaEndpoint": "wss://bridge-testnet-api.phala.network/thala/ws",
-    "evmEndpoint": "https://rinkeby.infura.io/v3/"
+    "erc20Handler": "0xEEc0fb4913119567cDfC0c5fc2Bf8f9F9B226c2d",
+    "bridge": "0x8F92e7353b180937895E0C5937d616E8ea1A2Bb9",
+    "khalaEndpoint": "wss://khala-archive.phala.network/ws",
+    "evmEndpoint": "https://mainnet.infura.io/v3/"
 }
