@@ -14,9 +14,10 @@ require('prom-client').collectDefaultMetrics({
 	gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5], // These are the default buckets.
 });
 
-setInterval(async () => {
-    await balances.updateBalanceOf(tokens);
-}, Number(process.env.UPDATE_INTERVAL));
+// Disable reserve balance monitor
+// setInterval(async () => {
+//     await balances.updateBalanceOf(tokens);
+// }, Number(process.env.UPDATE_INTERVAL));
 
 setInterval(async () => {
     await proposals.updateProposalTime();
