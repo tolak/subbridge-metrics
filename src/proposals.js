@@ -231,8 +231,10 @@ async function _filterBridgeEvent(khalaApi, evmProvider, hash) {
                 amount: event[3],
                 recipient: event[4]
             };
-            const bnString = ethers.utils.hexZeroPad(utils.asHexNumber(args.amount), 32).substr(2);
+            // Only monitor proposal send to Ethereum
+            if (args.destId != 0) continue;
 
+            const bnString = ethers.utils.hexZeroPad(utils.asHexNumber(args.amount), 32).substr(2);
             proposals.push({
                 createdAt: createdAt,
                 destId: args.destId,
