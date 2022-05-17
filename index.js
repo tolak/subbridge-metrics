@@ -50,6 +50,15 @@ server.get('/metrics/rb', async (req, res) => {
 	}
 });
 
+server.get('/metrics/block', async (req, res) => {
+	try {
+		res.set('Content-Type', register.contentType);
+		res.end(await register.getSingleMetricAsString('latest_processed_block'));
+	} catch (ex) {
+		res.status(500).end(ex);
+	}
+});
+
 // Initialize proposal handler
 proposals.initialize(__dirname + '/config.json', __dirname);
 

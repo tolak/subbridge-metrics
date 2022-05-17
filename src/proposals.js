@@ -26,6 +26,12 @@ const ProposalPendingTime = new Gauge({
 	labelNames: ['chain', "nonce"],
 });
 
+const LatestProcessedBlock = new Gauge({
+    name: 'latest_processed_block',
+    help: 'Latest processed block',
+    labelNames: []
+})
+
 setInterval(async () => {
     if (isProcessing) {
         console.debug(`📜 Interval task not finished, return.`);
@@ -322,6 +328,7 @@ async function _lookupProposalsFromBlocks() {
             proposals = proposals.concat(newProposals);
         }
         latestHandledBlock = to;
+        LatestProcessedBlock.set({}, latestHandledBlock);
         fs.writeFileSync(globalDataStorePath + blockFileName, `"latestHandledBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'w'});
     }
 
