@@ -61,21 +61,19 @@ function initialize(configPath, dataStorePath) {
     try {
         const configFile = fs.readFileSync(configPath, { encoding: 'utf8', flag: 'r' });
         const config = JSON.parse(configFile);
-        latestHandledBlock = config.startBlock;
+        const blockHistoryFile = fs.readFileSync(dataStorePath + blockFileName, { encoding: 'utf8', flag: 'r' });
+        const blockHistory = JSON.parse(blockHistoryFile);
+        // If have specified startBlock in config file
+        if (config.hasOwnProperty('startBlock')) {
+            console.debug(`📜 Override start height with configuration`);
+            latestHandledBlock = Number(config.startBlock);
+        } else {
+            console.debug(`📜 Use start height in block history`);
+            latestHandledBlock = Number(blockHistory.latestHandledBlock);
+        }
         syncStep = config.syncStep;
     } catch(err) {
-        if (err.code === 'ENOENT') {
-            console.info(`📜 Config file not found, try read start block from data store`);
-            try {
-                const blockHistoryFile = fs.readFileSync(dataStorePath + blockFileName, { encoding: 'utf8', flag: 'r' });
-                const blockHistory = JSON.parse(blockHistoryFile);
-                latestHandledBlock = blockHistory.startBlock;
-            } catch(err) {
-                throw err;
-            }
-        } else {
             throw err;
-        }
     }
     console.info(`📜 Set last handed block to ${latestHandledBlock}, step to ${syncStep}`);
 
@@ -329,7 +327,7 @@ async function _lookupProposalsFromBlocks() {
         }
         latestHandledBlock = to;
         LatestProcessedBlock.set({}, latestHandledBlock);
-        fs.writeFileSync(globalDataStorePath + blockFileName, `"latestHandledBlock": ${latestHandledBlock}`, { encoding: 'utf8', flag: 'w'});
+        fs.writeFileSync(globalDataStorePath + blockFileName, `"{latestHandledBlock": ${latestHandledBlock}}`, { encoding: 'utf8', flag: 'w'});
     }
 
     return proposals;
