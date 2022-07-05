@@ -327,7 +327,7 @@ async function _lookupProposalsFromBlocks() {
         }
         latestHandledBlock = to;
         LatestProcessedBlock.set({}, latestHandledBlock);
-        fs.writeFileSync(globalDataStorePath + blockFileName, `"{latestHandledBlock": ${latestHandledBlock}}`, { encoding: 'utf8', flag: 'w'});
+        fs.writeFileSync(globalDataStorePath + blockFileName, `{"latestHandledBlock": ${latestHandledBlock}}`, { encoding: 'utf8', flag: 'w'});
     }
 
     return proposals;
