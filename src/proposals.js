@@ -149,7 +149,11 @@ async function updateProposalTime() {
             console.debug(`✅ Proposal {dest: ${globalProposalPendingQueue[index].destId}, nonce: ${globalProposalPendingQueue[index].nonce}} handled, cost ${utils.minsPassed(globalProposalPendingQueue[index].createdAt)} minutes`);
         }
     }
+
     globalProposalPendingQueue = newPendingProposalQueue;
+    // Write back newest proposal queue
+    let jsonStr = JSON.stringify(globalProposalPendingQueue, null, 2);
+    fs.writeFileSync(globalDataStorePath + proposalFileName, jsonStr, { encoding: "utf-8" });
     console.debug(`📜 Run cleanup inverval task completed.`);
 }
 
@@ -166,7 +170,7 @@ async function _lookupProposals() {
     if (pendingProposals.length === 0) return;
     const prevPendingCount = globalProposalPendingQueue.length;
     _mergeNewPendingProposals(pendingProposals);
-    jsonStr = JSON.stringify(globalProposalPendingQueue, null, 2);
+    let jsonStr = JSON.stringify(globalProposalPendingQueue, null, 2);
     fs.writeFileSync(globalDataStorePath + proposalFileName, jsonStr, { encoding: "utf-8" });
     console.debug(`📜 Totally ${globalProposalPendingQueue.length - prevPendingCount} new pending proposals found.`);
 }
