@@ -17,11 +17,11 @@ require('prom-client').collectDefaultMetrics({
 
 setInterval(async () => {
     await transfer.updateTransferRecords();
-}, Number(process.env.UPDATE_INTERVAL));
+}, Number(20 * process.env.UPDATE_INTERVAL));
 
-setInterval(async () => {
-    await balances.updateBalanceOf(tokens);
-}, 2 * Number(process.env.UPDATE_INTERVAL));
+// setInterval(async () => {
+//     await balances.updateBalanceOf(tokens);
+// }, 2 * Number(process.env.UPDATE_INTERVAL));
 
 setInterval(async () => {
     await proposals.updateProposalTime();
