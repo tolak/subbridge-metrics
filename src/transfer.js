@@ -2,9 +2,8 @@ const fs = require('fs');
 const Gauge = require('prom-client').Gauge;
 const {gql, GraphQLClient} = require('graphql-request')
 const { Decimal } = require('decimal.js')
-const { encodeAddress } = require("@polkadot/util-crypto");
-
-// const config = require('../config.json');
+const { encodeAddress } = require("@polkadot/util-crypto")
+const ExcludeAccounts = require('./exclude-accounts')
 
 const transdferFileName = '/.transfer';
 let indexer = null;
@@ -16,9 +15,9 @@ const UserSendingAmount = new Gauge({
 	labelNames: ["sender", "recipient"],
 })
 
-const UserRecevingAmount = new Gauge({
-	name: 'receving_amount',
-	help: 'PHA receving from other chain',
+const UserReceivingAmount = new Gauge({
+	name: 'receiving_amount',
+	help: 'PHA receiving from other chain',
 	labelNames: ["recipient"],
 })
 
@@ -50,7 +49,7 @@ function initialize(path, endpoint) {
         // MultiLocation of PHA on Khala: "{\"parents\":0,\"interior\":{\"here\":null}}"
         if (asset.parents === 0) {
             let key = {sender: toKhalaAddress(record.sender), recipient: record.recipient}
-            console.log(`xcm sending record: ${toKhalaAddress(record.sender)}`)
+            // console.log(`Found xcm sending record: ${JSON.stringify(key, null, 2)}, ${toPHA(record.amount)}`)
             UserSendingAmount.set(key, toPHA(record.amount));
         }
     })
@@ -62,7 +61,7 @@ function initialize(path, endpoint) {
         // ResourceId of PHA on Khala: 0x00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6
         if (record.resourceId === '0x00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6') {
             let key = {sender: toKhalaAddress(record.sender), recipient: 'ethereum/' + record.recipient}
-            console.log(`chainbridge sending record: ${toKhalaAddress(record.sender)}`)
+            // console.log(`Found chainbridge sending record: ${JSON.stringify(key, null, 2)}, ${toPHA(record.amount)}`)
             UserSendingAmount.set(key, toPHA(record.amount));
         }
     })
@@ -73,8 +72,12 @@ function initialize(path, endpoint) {
         let asset = JSON.parse(record.asset)
         // MultiLocation of PHA on Khala: "{\"parents\":0,\"interior\":{\"here\":null}}"
         if (asset.parents === 0) {
-            let key = {recipient: record.account}
-            UserRecevingAmount.set(key, toPHA(record.amount))
+            let recipient = toKhalaAddress(record.account)
+            let key = {recipient: recipient}
+            if (!ExcludeAccounts.includes(recipient)) {
+                // console.log(`Found receving records: ${JSON.stringify(key, null, 2)}, ${toPHA(record.amount)}}`)
+                UserReceivingAmount.set(key, toPHA(record.amount))
+            }
         }
     })
 
@@ -214,9 +217,7 @@ function getChainbridgeRangeSendingHistory(from) {
     })
 }
 
-async function main() {
-    initialize(__dirname, "https://api.subquery.network/sq/Phala-Network/khala-subbridge-subquery__UGhhb")
-    await updateTransferRecords()
+module.exports = {
+    initialize,
+    updateTransferRecords,
 }
-
-main().catch(console.error).finally(() => process.exit());
